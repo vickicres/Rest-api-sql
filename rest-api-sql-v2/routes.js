@@ -4,9 +4,6 @@ const express = require('express');
 const bcryptjs = require('bcryptjs');
 const auth = require('basic-auth');
 
-// Construct a router instance.
-const router = express.Router();
-
 // connect models
 const User = require('./models').User;
 const Course = require('./models').Course;
@@ -28,7 +25,7 @@ function asyncHandler(cb) {
 // Authentication Middleware
 const authenticateUser = async (req, res, next) => {
     let message = null;
-    const users = await User.findAll();
+    // const users = await User.findAll();
     // Parse the user's credentials from the Authorization header
     const credentials = auth(req);
   
@@ -72,7 +69,10 @@ const authenticateUser = async (req, res, next) => {
     }
   };
 
-// plan user routes
+  // Construct a router instance.
+const router = express.Router();
+
+//Set up users routes
 // send GET request to /users 200 to return currently authenticated user
 router.get('/users', authenticateUser, asyncHandler(async(req, res) => {  
     const authenticatedUser = req.currentUser;
@@ -89,8 +89,24 @@ router.get('/users', authenticateUser, asyncHandler(async(req, res) => {
     }
   }));
   
-  // send POST request to /users 201 to create user (sets the location header to '/', and returns no content)
-  router.post('/users', asyncHandler(async(req, res) => {
+  // send POST request to /users 201 - Creates a user, sets the Location header to "/", and returns no content
+  router.post('/users', 
+  [
+    check("firstName")
+      .exists({ checkNull: true, checkFalsy: true })
+      .withMessage('Please provide a value for "first name"'),
+    check("lastName")
+      .exists({ checkNull: true, checkFalsy: true })
+      .withMessage('Please provide a value for "last name"'),
+    check("emailAddress")
+      .exists({ checkNull: true, checkFalsy: true })
+      .withMessage('Please provide a value for "email"'),
+    check("password")
+      .exists({ checkNull: true, checkFalsy: true })
+      .withMessage('Please provide a value for "password"'),
+  ],
+
+  asyncHandler(async(req, res) => {
     // get validation result from req object
     const errors = validationResult(req);
     // if there are validation errors
@@ -108,8 +124,8 @@ router.get('/users', authenticateUser, asyncHandler(async(req, res) => {
       res.status(201).location('/').end();
     }
   }));
-  
-  // plan course routes
+
+  // set up courses routes
   // send GET request to /courses 200 to return list of courses (includes the user that owns each course)
   router.get('/courses', asyncHandler(async(req, res) => {
       const courses = await Course.findAll({
@@ -123,7 +139,7 @@ router.get('/users', authenticateUser, asyncHandler(async(req, res) => {
       res.status(200).json(courses);
   }));
   
-  // send GET request to /courses/:id 200 to return the course for the provided course id
+  // send GET request to /courses/:id 200 to return the course (including the user that owns the course) for the provided course ID
   router.get('/courses/:id', asyncHandler(async(req, res) => {
     const course = await Course.findByPk(req.params.id, {
       attributes: {
@@ -133,20 +149,34 @@ router.get('/users', authenticateUser, asyncHandler(async(req, res) => {
         exclude: ['password', 'createdAt', 'updatedAt']
       }}]
     });
-    res.status(200).json(course);
+    if (course) {
+      res.json(course);
+    } else {
+      res.status(404).json({ message: "Course not found." });
+    }
   }));
   
-  // send a POST request to /courses 201 to create a course (sets the location header to the uri for the course, returns no content)
-  router.post('/courses', authenticateUser, asyncHandler(async(req, res) => {
+  // send a POST request to /courses 201 to create a course, sets the Location header to the URI for the course, and returns no content
+  router.post('/courses', 
+  [
+    check("title")
+      .exists({ checkNull: true, checkFalsy: true })
+      .withMessage('Please provide a value for "title"'),
+    check("description")
+      .exists({ checkNull: true, checkFalsy: true })
+      .withMessage('Please provide a value for "description"'),
+  ],
+  
+  authenticateUser, asyncHandler(async(req, res) => {
     const course = await Course.create(req.body);
     if (course) {
       res.status(201).location('/courses' + course.id).end();
     } else {
-      res.status(400).json();
+      res.status(400).json({message: "course info is required."});
     }
   }));
   
-  // send a PUT request to /courses/:id 204 to update a course and return no content
+  // send a PUT request to /courses/:id 204 to update (edit) a course and returns no content
   router.put('/courses/:id', authenticateUser,  [ 
     check('title')
         .exists()
@@ -170,7 +200,7 @@ router.get('/users', authenticateUser, asyncHandler(async(req, res) => {
         await course.update(req.body);
         res.status(204).end();
       } else {
-        res.status(403).json({ message: 'Changes to this course can only be made by the authorized user' });
+        res.status(403).end();
       }
     }
   }));
@@ -184,7 +214,7 @@ router.get('/users', authenticateUser, asyncHandler(async(req, res) => {
         await course.destroy();
         res.status(204).end();
       } else {
-        res.status(403).json({ message: 'Changes to this course can only be made by the authorized user' });
+        res.status(403).json({ message: "You don't have premission to deleted this course." });
       } 
     } else {
         res.status(400).json();

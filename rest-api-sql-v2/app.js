@@ -26,7 +26,7 @@ const enableGlobalErrorLogging = process.env.ENABLE_GLOBAL_ERROR_LOGGING === 'tr
 // create the Express app
 const app = express();
 
-// setup req body JSON parsing.
+// setup req body on JSON.
 app.use(express.json());
 
 // setup morgan which gives us http request logging
